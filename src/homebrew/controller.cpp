@@ -688,6 +688,11 @@ void Controller::TickRuntime() {
     for (auto it = folder_games_waiting_for_play_.begin(); it != folder_games_waiting_for_play_.end();) {
       const auto app_id = it->first;
       const auto* view = record_of(app_id);
+      if (ready(view) && view->awaiting_registration) {
+        model_.SetFolderGameMessage("Imported game prepared. Quit Playden so the PS5 can register its tile, launch it from Home, then reopen Playden to use Play.");
+        it = folder_games_waiting_for_play_.erase(it);
+        continue;
+      }
       if (ready(view)) {
         runtime_->Play(app_id);
         it = folder_games_waiting_for_play_.erase(it);
