@@ -3505,6 +3505,17 @@ void Simulation::start_logs() {
 
 void Simulation::SetLogDirectory(std::filesystem::path directory) {
     log_directory_ = std::move(directory);
+    const auto catalog_path = (log_directory_.empty() ? std::filesystem::path("/data/playden")
+                                                       : log_directory_.parent_path()) / "imported-games.json";
+    std::error_code catalog_error;
+    if (std::filesystem::exists(catalog_path, catalog_error)) {
+        std::vector<rt::FolderGame> catalog;
+        std::string error;
+        if (rt::LoadFolderGameCatalog(catalog_path, &catalog, &error))
+            state_.folder_imported_games = std::move(catalog);
+        else
+            state_.folder_import_message = "Catalog could not be loaded: " + error;
+    }
     rebuild_view();
 }
 
