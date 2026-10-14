@@ -15,7 +15,7 @@ std::uint32_t FolderRuntimeAppId(const runtime::FolderGame& game) {
     hash ^= byte;
     hash *= 16777619u;
   }
-  return 0x80000000u | (hash & 0x7fffffffu);
+  return 0xf0000000u | (hash & 0x0fffffffu);
 }
 }  // namespace
 Controller::Controller(Simulation& model, steam::AuthBackend& backend, SessionRepository& repository,
