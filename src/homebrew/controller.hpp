@@ -82,6 +82,8 @@ class Controller {
   std::set<GameId> cloud_busy_;
   // Play requested but not yet visible in the runtime's launch state.
   std::set<GameId> play_queued_;
+  // Imported folders are prepared and launched through the same native runtime pipeline.
+  std::map<std::uint32_t, std::string> folder_games_waiting_for_play_;
   std::uint64_t plays_requested_ = 0;
   // Play checks Cloud saves first: games waiting for that check (true once the
   // sync was issued), games whose check passed and can start, games the player
