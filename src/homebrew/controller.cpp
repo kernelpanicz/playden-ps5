@@ -694,6 +694,7 @@ void Controller::TickRuntime() {
         continue;
       }
       if (ready(view)) {
+        model_.SetFolderGameMessage("Launching imported game…");
         runtime_->Play(app_id);
         it = folder_games_waiting_for_play_.erase(it);
         continue;
