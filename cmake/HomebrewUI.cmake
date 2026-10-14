@@ -69,7 +69,8 @@ add_library(playden_steam_cm_codec STATIC
     "${CMAKE_SOURCE_DIR}/src/runtime/prospero_profile.cpp"
     "${CMAKE_SOURCE_DIR}/src/runtime/game_settings.cpp"
     "${CMAKE_SOURCE_DIR}/src/runtime/install_script.cpp"
-    "${CMAKE_SOURCE_DIR}/src/runtime/game_probe.cpp")
+    "${CMAKE_SOURCE_DIR}/src/runtime/game_probe.cpp"
+    "${CMAKE_SOURCE_DIR}/src/runtime/folder_game_import.cpp")
 target_include_directories(playden_steam_cm_codec PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_include_directories(playden_steam_cm_codec PRIVATE "${PLAYDEN_STB_IMAGE_INCLUDE_DIR}")
 target_compile_features(playden_steam_cm_codec PUBLIC cxx_std_17)
@@ -538,6 +539,9 @@ if(BUILD_TESTING)
     add_executable(runtime_settings_storage_test tests/runtime_settings_storage_test.cpp)
     target_link_libraries(runtime_settings_storage_test PRIVATE playden_runtime_settings_storage)
     add_test(NAME runtime_settings_storage COMMAND runtime_settings_storage_test)
+    add_executable(folder_game_import_test tests/folder_game_import_test.cpp src/runtime/folder_game_import.cpp)
+    target_compile_features(folder_game_import_test PRIVATE cxx_std_17)
+    add_test(NAME folder_game_import COMMAND folder_game_import_test)
     add_executable(game_settings_io_test tests/game_settings_io_test.cpp src/runtime/game_settings.cpp src/runtime/game_probe.cpp src/platform/managed_directory.cpp)
     target_link_libraries(game_settings_io_test PRIVATE playden_steam_cm_codec)
     target_compile_features(game_settings_io_test PRIVATE cxx_std_20)

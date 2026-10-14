@@ -2,8 +2,22 @@
 #include "diagnostics/redaction.h"
 #include "steam/install_volumes.h"
 #include <chrono>
+#include <cstdint>
 
 namespace playden::homebrew {
+namespace {
+std::uint32_t FolderRuntimeAppId(const runtime::FolderGame& game) {
+  // Reserve the upper half of the ID space for locally imported folders. The stable
+  // hash lets the runtime's existing install registry identify the same folder again.
+  std::uint32_t hash = 2166136261u;
+  const std::string identity = game.id + "|" + game.root.string() + "|" + game.executable;
+  for (const unsigned char byte : identity) {
+    hash ^= byte;
+    hash *= 16777619u;
+  }
+  return 0xf0000000u | (hash & 0x0fffffffu);
+}
+}  // namespace
 Controller::Controller(Simulation& model, steam::AuthBackend& backend, SessionRepository& repository,
                        LibraryService* library_service, app::PersistenceService* persistence_service,
                        steam::AppDetailsService* app_details, steam::InstallService* installs,
@@ -584,6 +598,37 @@ void Controller::TickRuntime() {
           names[id] = model_.state().title_store_suffix ? game.title + " (Steam)" : game.title;
     runtime_->SetTitleNames(std::move(names));
   }
+  // Imported games reuse the same kit, preparation journal, native title registration,
+  // LaunchService and application-thread Handoff as Steam-installed games.
+  for (const auto& imported_id : model_.TakeFolderGamePlayRequests()) {
+    const auto& catalog = model_.state().folder_imported_games;
+    const auto found = std::find_if(catalog.begin(), catalog.end(), [&](const runtime::FolderGame& game) {
+      return game.id == imported_id;
+    });
+    if (found == catalog.end()) continue;
+    const auto app_id = FolderRuntimeAppId(*found);
+    const auto snapshot = runtime_->Shared();
+    const auto existing = std::find_if(snapshot->installs.begin(), snapshot->installs.end(),
+                                        [app_id](const RuntimeInstallView& view) { return view.app_id == app_id; });
+    if (existing != snapshot->installs.end() &&
+        existing->state == runtime::PreparationState::kReady && !existing->recovery_pending &&
+        existing->title_current && existing->admission == "ok") {
+      model_.SetFolderGameMessage("Launching imported game…");
+      runtime_->Play(app_id);
+      continue;
+    }
+    if (folder_games_waiting_for_play_.count(app_id)) continue;
+    RuntimePrepareRequest request;
+    request.app_id = app_id;
+    request.install_path = found->root.string();
+    request.volume_id = "folder-import";
+    request.title_name = found->name;
+    request.launch_reason = "Imported game folder";
+    request.launches.push_back({"folder-main", found->name, found->executable,
+                                found->working_directory, found->arguments});
+    folder_games_waiting_for_play_[app_id] = imported_id;
+    runtime_->Prepare(std::move(request));
+  }
   for (const auto id : model_.TakeRuntimePrepareRequests()) {
     if (!game_roots_.count(id)) continue;
     // Without Steam's launch options yet, ask Steam first; TickAppDetails submits it.
@@ -639,6 +684,31 @@ void Controller::TickRuntime() {
       return view && view->state == runtime::PreparationState::kReady && !view->recovery_pending &&
              view->title_current && view->admission == "ok";
     };
+    // When the imported folder has reached Ready, request Play; RuntimeHost will
+    // still route the native start through LaunchService::Handoff on this thread.
+    for (auto it = folder_games_waiting_for_play_.begin(); it != folder_games_waiting_for_play_.end();) {
+      const auto app_id = it->first;
+      const auto* view = record_of(app_id);
+      if (ready(view) && view->awaiting_registration) {
+        model_.SetFolderGameMessage("Imported game prepared. Quit Playden so the PS5 can register its tile, launch it from Home, then reopen Playden to use Play.");
+        it = folder_games_waiting_for_play_.erase(it);
+        continue;
+      }
+      if (ready(view)) {
+        model_.SetFolderGameMessage("Launching imported game…");
+        runtime_->Play(app_id);
+        it = folder_games_waiting_for_play_.erase(it);
+        continue;
+      }
+      const auto refusal = prepared.refusals.find(app_id);
+      if (refusal != prepared.refusals.end() && prepared.preparing_app != app_id &&
+          !prepared.queued_prepares.count(app_id)) {
+        model_.SetFolderGameMessage("Could not prepare imported game: " + refusal->second);
+        it = folder_games_waiting_for_play_.erase(it);
+        continue;
+      }
+      ++it;
+    }
     const auto refusal_of = [&prepared](GameId id) {
       const auto found = prepared.refusals.find(id);
       return found == prepared.refusals.end() ? std::string{} : found->second;

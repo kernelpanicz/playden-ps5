@@ -7,6 +7,7 @@
 #include "library/organization.h"
 #include "library/model.h"
 #include "runtime/game_settings.h"
+#include "runtime/folder_game_import.h"
 
 #include <array>
 #include <cstdint>
@@ -397,6 +398,14 @@ struct State {
     std::map<GameId, std::uint64_t> save_sizes;         // live: Windows user folders of games without Steam Cloud
     Navigation navigation;
     EditorState editor;
+    // Folder importer form state. Paths remain absolute on the console; executable is relative to root.
+    std::string folder_import_name;
+    std::string folder_import_root;
+    std::string folder_import_executable;
+    std::string folder_import_arguments;
+    std::vector<std::string> folder_import_executables;
+    std::vector<playden::runtime::FolderGame> folder_imported_games;
+    std::string folder_import_message;
     std::vector<Notice> notices;
     // Per-game settings: preset and player overrides (see runtime/game_settings.h).
     std::map<GameId, playden::runtime::GameSettingsRecord> game_settings;
@@ -520,6 +529,8 @@ public:
     // Queues Prepare without a button press: after a download, or before Play.
     void RequestRuntimePrepare(GameId id);
     [[nodiscard]] std::vector<GameId> TakeRuntimePlayRequests();
+    [[nodiscard]] std::vector<std::string> TakeFolderGamePlayRequests();
+    void SetFolderGameMessage(std::string message);
     [[nodiscard]] bool TakeRuntimeCleanupRequest();
     // Live mode: kept game data, deletions the player confirmed, and why an uninstall stopped.
     void UpdateKeptBottles(std::vector<LiveKeptBottle> kept);
@@ -652,6 +663,7 @@ private:
     std::vector<InstallRequest> pending_install_requests_;
     std::vector<GameId> pending_runtime_prepare_requests_;
     std::vector<GameId> pending_runtime_play_requests_;
+    std::vector<std::string> pending_folder_game_play_requests_;
     bool pending_runtime_cleanup_ = false;
     bool library_catalog_received_ = false;
     // Live install events become notifications; the first snapshot is restored history, not an event.
