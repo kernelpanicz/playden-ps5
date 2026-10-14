@@ -803,6 +803,17 @@ std::vector<GameId> Simulation::TakeRuntimePlayRequests() {
     return requests;
 }
 
+std::vector<std::string> Simulation::TakeFolderGamePlayRequests() {
+  auto requests = std::move(pending_folder_game_play_requests_);
+  pending_folder_game_play_requests_.clear();
+  return requests;
+}
+
+void Simulation::SetFolderGameMessage(std::string message) {
+  state_.folder_import_message = std::move(message);
+  rebuild_view();
+}
+
 bool Simulation::TakeRuntimeCleanupRequest() {
     const bool requested = pending_runtime_cleanup_;
     pending_runtime_cleanup_ = false;
@@ -2986,6 +2997,11 @@ void Simulation::rebuild_view() {
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
         row("library-import-folder", RowKind::Action, "Import game from folder", "folder-import-open");
+        for (const auto& imported : state_.folder_imported_games) {
+            auto& item = row("folder-game-" + imported.id, RowKind::Action, imported.name,
+                             "folder-game-play-" + imported.id);
+            item.subtitle = imported.root.string() + "/" + imported.executable;
+        }
         if (view_.rows.empty()) row(state_.library.query.empty() ? "library-empty" : "clear-search", RowKind::Action,
                                     state_.library.query.empty() ? "Connect Steam" : "Clear search", state_.library.query.empty() ? "connect" : "clear-search");
         // The footer shows five legends; with a search applied, Circle clears it in place of Square Favorite.
@@ -4121,6 +4137,17 @@ void Simulation::activate() {
     else if (action_name == "editor-done") commit_editor();
     else if (action_name == "folder-import-open") {
         state_.folder_import_message.clear();
+        const auto catalog_path = (log_directory_.empty() ? std::filesystem::path("/data/playden")
+                                                           : log_directory_.parent_path()) / "imported-games.json";
+        std::error_code catalog_error;
+        if (std::filesystem::exists(catalog_path, catalog_error)) {
+            std::vector<rt::FolderGame> catalog;
+            std::string error;
+            if (rt::LoadFolderGameCatalog(catalog_path, &catalog, &error))
+                state_.folder_imported_games = std::move(catalog);
+            else
+                state_.folder_import_message = "Catalog could not be loaded: " + error;
+        }
         open_modal({"folder-import", "Import game from folder", state_.navigation.focus_key,
                     {"folder-import-save", "cancel"}, 0, false});
     } else if (action_name == "folder-import-edit-name") start_editor("Imported game name", state_.folder_import_name);
@@ -4140,6 +4167,13 @@ void Simulation::activate() {
         if (end && *end == 0 && index < state_.folder_import_executables.size()) {
             state_.folder_import_executable = state_.folder_import_executables[index];
             state_.folder_import_message = "Selected " + state_.folder_import_executable;
+        }
+    } else if (action_name.rfind("folder-game-play-", 0) == 0) {
+        const auto id = action_name.substr(std::string("folder-game-play-").size());
+        if (std::any_of(state_.folder_imported_games.begin(), state_.folder_imported_games.end(),
+                        [&id](const rt::FolderGame& game) { return game.id == id; })) {
+            pending_folder_game_play_requests_.push_back(id);
+            state_.folder_import_message = "Preparing imported game for launch…";
         }
     } else if (action_name == "folder-import-save") {
         const std::string id = "folder-" + std::to_string(std::hash<std::string>{}(state_.folder_import_root + "|" + state_.folder_import_executable));
