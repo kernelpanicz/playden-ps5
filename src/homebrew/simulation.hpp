@@ -7,6 +7,7 @@
 #include "library/organization.h"
 #include "library/model.h"
 #include "runtime/game_settings.h"
+#include "runtime/folder_game_import.h"
 
 #include <array>
 #include <cstdint>
@@ -397,6 +398,14 @@ struct State {
     std::map<GameId, std::uint64_t> save_sizes;         // live: Windows user folders of games without Steam Cloud
     Navigation navigation;
     EditorState editor;
+    // Folder importer form state. Paths remain absolute on the console; executable is relative to root.
+    std::string folder_import_name;
+    std::string folder_import_root;
+    std::string folder_import_executable;
+    std::string folder_import_arguments;
+    std::vector<std::string> folder_import_executables;
+    std::vector<playden::runtime::FolderGame> folder_imported_games;
+    std::string folder_import_message;
     std::vector<Notice> notices;
     // Per-game settings: preset and player overrides (see runtime/game_settings.h).
     std::map<GameId, playden::runtime::GameSettingsRecord> game_settings;
