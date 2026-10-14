@@ -529,6 +529,8 @@ public:
     // Queues Prepare without a button press: after a download, or before Play.
     void RequestRuntimePrepare(GameId id);
     [[nodiscard]] std::vector<GameId> TakeRuntimePlayRequests();
+    [[nodiscard]] std::vector<std::string> TakeFolderGamePlayRequests();
+    void SetFolderGameMessage(std::string message);
     [[nodiscard]] bool TakeRuntimeCleanupRequest();
     // Live mode: kept game data, deletions the player confirmed, and why an uninstall stopped.
     void UpdateKeptBottles(std::vector<LiveKeptBottle> kept);
@@ -661,6 +663,7 @@ private:
     std::vector<InstallRequest> pending_install_requests_;
     std::vector<GameId> pending_runtime_prepare_requests_;
     std::vector<GameId> pending_runtime_play_requests_;
+    std::vector<std::string> pending_folder_game_play_requests_;
     bool pending_runtime_cleanup_ = false;
     bool library_catalog_received_ = false;
     // Live install events become notifications; the first snapshot is restored history, not an event.
