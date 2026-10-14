@@ -5,6 +5,7 @@
 
 #include "homebrew/simulation.hpp"
 #include "runtime/game_probe.h"
+#include "runtime/folder_game_import.h"
 
 #include "app/diagnostic_log.h"
 #include "homebrew/browse.hpp"
@@ -432,7 +433,7 @@ std::string action_label(const std::string& key) {
         {"cloud-sync", "Cloud saves"}, {"cloud-choose", "Cloud saves"}, {"cloud-use-cloud", "Use Cloud saves"},
         {"cloud-use-local", "Use console saves"}, {"cloud-confirm-account", "Use this account"},
         {"saves-delete-confirm", "Delete saves"}, {"manage-saves", "Manage saves"}, {"saves-leftover-confirm", "Remove"}, {"saves-quit-anyway", "Play without syncing"},
-        {"install-confirm", "Install"}, {"storage-picker", "Change storage"},
+        {"install-confirm", "Install"}, {"storage-picker", "Change storage"}, {"folder-import-save", "Import game"}, {"folder-import-scan", "Scan folder"},
         {"value-edit", "Edit…"}, {"value-reset", "Reset to recipe"}, {"override-add", "Add an override…"},
         {"unlock-setting", "Change anyway"}, {"export-recipe", "Export as recipe"}, {"program-scan", "Looking for programs…"},
         {"preset-picker", "Preset"}, {"game-settings", "Game settings"}, {"game-maintenance", "Maintenance"}, {"runtime-check-again", "Check again"}, {"reset-settings", "Reset all to preset"}, {"clear-shader-cache", "Clear shader cache"},
@@ -2426,7 +2427,9 @@ void Simulation::rebuild_view() {
             if (rt::BuildEffectiveSettings(RecipeFor(settings_game), preset_for(settings_game), overrides, kit_, &base, &ignored))
                 inherited = base.values.at(modal.setting_id);
         }
-        if (modal.id == "game-settings" || modal.id == "game-maintenance") {
+        if (modal.id == "folder-import") {
+            view_.subtitle = "Add a Windows game already stored on this PS5. Nothing is downloaded or moved.";
+        } else if (modal.id == "game-settings" || modal.id == "game-maintenance") {
             if (const auto* game = find_game(state_, settings_game)) view_.subtitle = game->title;
         } else if (!modal.setting_id.empty()) {
             if (const auto* definition = rt::FindSetting(modal.setting_id)) {
@@ -2480,6 +2483,27 @@ void Simulation::rebuild_view() {
         if (modal.id == "kept-data")
             view_.subtitle = "Saves and settings kept when a game was uninstalled. Installing a game again brings its saves "
                              "back. Saves in Steam Cloud stay in Steam Cloud.";
+        if (modal.id == "folder-import") {
+            auto& name = row("folder-import-name", RowKind::Action, "Game name", state_.folder_import_name.empty() ? "Set name…" : state_.folder_import_name, "folder-import-edit-name");
+            name.subtitle = "The name shown in your imported-game list";
+            auto& root = row("folder-import-root", RowKind::Action, "Game folder", state_.folder_import_root.empty() ? "Set absolute PS5 path…" : state_.folder_import_root, "folder-import-edit-root");
+            root.subtitle = "Example: /mnt/usb0/Games/MyGame";
+            auto& exe = row("folder-import-executable", RowKind::Action, "Windows executable", state_.folder_import_executable.empty() ? "Scan folder or enter relative path…" : state_.folder_import_executable, "folder-import-edit-executable");
+            exe.subtitle = "Path relative to the game folder";
+            auto& args = row("folder-import-arguments", RowKind::Action, "Launch arguments", state_.folder_import_arguments.empty() ? "None" : state_.folder_import_arguments, "folder-import-edit-arguments");
+            args.subtitle = "Optional arguments passed to the executable";
+            auto& scan = row("folder-import-scan", RowKind::Action, "Scan for executables", "Find .exe files inside the folder", "folder-import-scan");
+            scan.enabled = !state_.folder_import_root.empty();
+            for (std::size_t i = 0; i < state_.folder_import_executables.size(); ++i) {
+                const auto& path = state_.folder_import_executables[i];
+                auto& found = row("folder-import-found-" + std::to_string(i), RowKind::Action, path, "Use this executable", "folder-import-pick-" + std::to_string(i));
+                found.subtitle = "Found in selected folder";
+            }
+            if (!state_.folder_import_message.empty()) {
+                auto& status = row("folder-import-status", RowKind::Status, state_.folder_import_message, "");
+                status.enabled = false;
+            }
+        }
         for (const auto& action_key : modal.action_keys) {
             auto& item = row(action_key, RowKind::Action, action_label(action_key), action_key);
             item.dangerous = modal.destructive && action_key != "cancel";
@@ -2956,6 +2980,7 @@ void Simulation::rebuild_view() {
             if (state_.library.favorites.contains(game->id)) item.badge = "Favorite";
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
+        row("library-import-folder", RowKind::Action, "Import game from folder", "Choose a game folder already on this PS5", "folder-import-open");
         if (view_.rows.empty()) row(state_.library.query.empty() ? "library-empty" : "clear-search", RowKind::Action,
                                     state_.library.query.empty() ? "Connect Steam" : "Clear search", state_.library.query.empty() ? "connect" : "clear-search");
         // The footer shows five legends; with a search applied, Circle clears it in place of Square Favorite.
@@ -3540,7 +3565,29 @@ void Simulation::start_editor(std::string purpose, std::string value) {
 
 void Simulation::commit_editor() {
     if (state_.editor.purpose == "Search") { state_.library.query = state_.editor.value; reconcile_library_selection(state_); }
-    else if (!editing_setting_id_.empty()) {
+    else if (state_.editor.purpose == "Imported game name") {
+        state_.folder_import_name = trimmed(state_.editor.value);
+        state_.editor.active = false;
+        state_.navigation.focus_key = state_.editor.opener_focus_key;
+        return;
+    } else if (state_.editor.purpose == "PS5 game folder path") {
+        state_.folder_import_root = trimmed(state_.editor.value);
+        state_.folder_import_executables.clear();
+        state_.folder_import_message.clear();
+        state_.editor.active = false;
+        state_.navigation.focus_key = state_.editor.opener_focus_key;
+        return;
+    } else if (state_.editor.purpose == "Executable relative path") {
+        state_.folder_import_executable = trimmed(state_.editor.value);
+        state_.editor.active = false;
+        state_.navigation.focus_key = state_.editor.opener_focus_key;
+        return;
+    } else if (state_.editor.purpose == "Launch arguments") {
+        state_.folder_import_arguments = state_.editor.value;
+        state_.editor.active = false;
+        state_.navigation.focus_key = state_.editor.opener_focus_key;
+        return;
+    } else if (!editing_setting_id_.empty())
         if (!can_change_game_settings()) return;
         auto value = trimmed(state_.editor.value);
         // "Add an override" puts one entry after the current list.
@@ -4067,6 +4114,53 @@ void Simulation::activate() {
     else if (action_name == "skip" || action_name == "library") { state_.navigation.route = action_name == "skip" ? Route::Home : Route::Library; state_.navigation.focus_key.clear(); }
     else if (action_name == "qr-cancel" || action_name == "editor-cancel" || action_name == "cancel") cancel();
     else if (action_name == "editor-done") commit_editor();
+    else if (action_name == "folder-import-open") {
+        state_.folder_import_message.clear();
+        open_modal({"folder-import", "Import game from folder", state_.navigation.focus_key,
+                    {"folder-import-save", "cancel"}, 0, false});
+    } else if (action_name == "folder-import-edit-name") start_editor("Imported game name", state_.folder_import_name);
+    else if (action_name == "folder-import-edit-root") start_editor("PS5 game folder path", state_.folder_import_root);
+    else if (action_name == "folder-import-edit-executable") start_editor("Executable relative path", state_.folder_import_executable);
+    else if (action_name == "folder-import-edit-arguments") start_editor("Launch arguments", state_.folder_import_arguments);
+    else if (action_name == "folder-import-scan") {
+        state_.folder_import_executables = rt::DiscoverFolderExecutables(state_.folder_import_root);
+        state_.folder_import_message = state_.folder_import_executables.empty()
+            ? "No Windows executables found. Check the folder path or enter the executable path manually."
+            : "Found " + std::to_string(state_.folder_import_executables.size()) + " executable(s). Select one below.";
+        state_.navigation.focus_key = "folder-import-scan";
+    } else if (action_name.rfind("folder-import-pick-", 0) == 0) {
+        const auto index_text = action_name.substr(std::string("folder-import-pick-").size());
+        char* end = nullptr;
+        const auto index = std::strtoul(index_text.c_str(), &end, 10);
+        if (end && *end == 0 && index < state_.folder_import_executables.size()) {
+            state_.folder_import_executable = state_.folder_import_executables[index];
+            state_.folder_import_message = "Selected " + state_.folder_import_executable;
+        }
+    } else if (action_name == "folder-import-save") {
+        const std::string id = "folder-" + std::to_string(std::hash<std::string>{}(state_.folder_import_root + "|" + state_.folder_import_executable));
+        const auto result = rt::ValidateFolderGame(id, trimmed(state_.folder_import_name), state_.folder_import_root,
+                                                    state_.folder_import_executable, state_.folder_import_arguments);
+        if (!result.ok || !result.game) state_.folder_import_message = result.message;
+        else {
+            std::vector<rt::FolderGame> catalog;
+            std::string error;
+            const auto catalog_path = (log_directory_.empty() ? std::filesystem::path("/data/playden")
+                                                               : log_directory_.parent_path()) / "imported-games.json";
+            std::error_code exists_error;
+            if (std::filesystem::exists(catalog_path, exists_error)) {
+                if (!rt::LoadFolderGameCatalog(catalog_path, &catalog, &error)) {
+                    state_.folder_import_message = "Catalog could not be loaded: " + error;
+                    return;
+                }
+            }
+            catalog.erase(std::remove_if(catalog.begin(), catalog.end(), [&id](const rt::FolderGame& game) { return game.id == id; }), catalog.end());
+            catalog.push_back(*result.game);
+            if (rt::SaveFolderGameCatalog(catalog_path, catalog, &error)) {
+                state_.folder_imported_games = std::move(catalog);
+                state_.folder_import_message = "Imported " + result.game->name + ". Catalog saved.";
+            } else state_.folder_import_message = "Could not save imported game: " + error;
+        }
+    }
     else if (action_name == "clear-search") { state_.library.query.clear(); reconcile_library_selection(state_); }
     else if (action_name == "open-game") {
         if (live()) force_organization_selection_ = true;
