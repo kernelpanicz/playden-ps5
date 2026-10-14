@@ -2484,19 +2484,23 @@ void Simulation::rebuild_view() {
             view_.subtitle = "Saves and settings kept when a game was uninstalled. Installing a game again brings its saves "
                              "back. Saves in Steam Cloud stay in Steam Cloud.";
         if (modal.id == "folder-import") {
-            auto& name = row("folder-import-name", RowKind::Action, "Game name", state_.folder_import_name.empty() ? "Set name…" : state_.folder_import_name, "folder-import-edit-name");
+            auto& name = row("folder-import-name", RowKind::Action, "Game name", "folder-import-edit-name");
+            name.value = state_.folder_import_name.empty() ? "Set name…" : state_.folder_import_name;
             name.subtitle = "The name shown in your imported-game list";
-            auto& root = row("folder-import-root", RowKind::Action, "Game folder", state_.folder_import_root.empty() ? "Set absolute PS5 path…" : state_.folder_import_root, "folder-import-edit-root");
+            auto& root = row("folder-import-root", RowKind::Action, "Game folder", "folder-import-edit-root");
+            root.value = state_.folder_import_root.empty() ? "Set absolute PS5 path…" : state_.folder_import_root;
             root.subtitle = "Example: /mnt/usb0/Games/MyGame";
-            auto& exe = row("folder-import-executable", RowKind::Action, "Windows executable", state_.folder_import_executable.empty() ? "Scan folder or enter relative path…" : state_.folder_import_executable, "folder-import-edit-executable");
+            auto& exe = row("folder-import-executable", RowKind::Action, "Windows executable", "folder-import-edit-executable");
+            exe.value = state_.folder_import_executable.empty() ? "Scan folder or enter relative path…" : state_.folder_import_executable;
             exe.subtitle = "Path relative to the game folder";
-            auto& args = row("folder-import-arguments", RowKind::Action, "Launch arguments", state_.folder_import_arguments.empty() ? "None" : state_.folder_import_arguments, "folder-import-edit-arguments");
+            auto& args = row("folder-import-arguments", RowKind::Action, "Launch arguments", "folder-import-edit-arguments");
+            args.value = state_.folder_import_arguments.empty() ? "None" : state_.folder_import_arguments;
             args.subtitle = "Optional arguments passed to the executable";
             auto& scan = row("folder-import-scan", RowKind::Action, "Scan for executables", "Find .exe files inside the folder", "folder-import-scan");
             scan.enabled = !state_.folder_import_root.empty();
             for (std::size_t i = 0; i < state_.folder_import_executables.size(); ++i) {
                 const auto& path = state_.folder_import_executables[i];
-                auto& found = row("folder-import-found-" + std::to_string(i), RowKind::Action, path, "Use this executable", "folder-import-pick-" + std::to_string(i));
+                auto& found = row("folder-import-found-" + std::to_string(i), RowKind::Action, path, "folder-import-pick-" + std::to_string(i));
                 found.subtitle = "Found in selected folder";
             }
             if (!state_.folder_import_message.empty()) {
@@ -2980,7 +2984,7 @@ void Simulation::rebuild_view() {
             if (state_.library.favorites.contains(game->id)) item.badge = "Favorite";
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
-        row("library-import-folder", RowKind::Action, "Import game from folder", "Choose a game folder already on this PS5", "folder-import-open");
+        row("library-import-folder", RowKind::Action, "Import game from folder", "folder-import-open");
         if (view_.rows.empty()) row(state_.library.query.empty() ? "library-empty" : "clear-search", RowKind::Action,
                                     state_.library.query.empty() ? "Connect Steam" : "Clear search", state_.library.query.empty() ? "connect" : "clear-search");
         // The footer shows five legends; with a search applied, Circle clears it in place of Square Favorite.
