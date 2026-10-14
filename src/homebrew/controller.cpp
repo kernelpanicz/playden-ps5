@@ -613,6 +613,7 @@ void Controller::TickRuntime() {
     if (existing != snapshot->installs.end() &&
         existing->state == runtime::PreparationState::kReady && !existing->recovery_pending &&
         existing->title_current && existing->admission == "ok") {
+      model_.SetFolderGameMessage("Launching imported game…");
       runtime_->Play(app_id);
       continue;
     }
