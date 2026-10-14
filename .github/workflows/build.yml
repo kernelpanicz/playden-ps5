@@ -1,0 +1,53 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - main
+      - feature/non-steam-folder-import
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-build:
+    name: Linux host build and tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository and pinned submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            clang cmake ninja-build pkg-config python3 \
+            build-essential git curl ca-certificates \
+            libgl1-mesa-dev libegl1-mesa-dev libx11-dev \
+            libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev libasound2-dev
+
+      - name: Verify pinned sources and prepare host dependencies
+        run: scripts/build-homebrew.sh --prepare-only
+
+      - name: Build Playden host app
+        run: scripts/build-homebrew.sh
+
+      - name: Run CTest
+        run: ctest --test-dir build/homebrew-host --output-on-failure
+
+      - name: Upload host build
+        uses: actions/upload-artifact@v4
+        with:
+          name: playden-homebrew-linux
+          path: build/homebrew-host/playden-homebrew
+          if-no-files-found: error
+          retention-days: 14
