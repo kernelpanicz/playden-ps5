@@ -51,3 +51,36 @@ jobs:
           path: build/homebrew-host/playden-homebrew
           if-no-files-found: error
           retention-days: 14
+
+  ps5-package:
+    name: Build PS5 package
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository and pinned submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install toolchain prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            clang cmake ninja-build python3 curl unzip perl make pkg-config \
+            build-essential git ca-certificates zlib1g-dev
+
+      - name: Fetch and verify pinned PS5 SDK dependencies
+        run: scripts/fetch-deps.sh
+
+      - name: Build title-scoped Lapy helper
+        run: scripts/build-lapy-helper.sh
+
+      - name: Build PS5 package
+        run: scripts/build-homebrew-ps5.sh
+
+      - name: Upload PS5 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: playden-ps5-package
+          path: build/homebrew-ps5/dist/FAKE77031/
+          if-no-files-found: error
+          retention-days: 14
