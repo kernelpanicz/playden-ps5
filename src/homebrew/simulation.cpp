@@ -3002,6 +3002,10 @@ void Simulation::rebuild_view() {
                              "folder-game-play-" + imported.id);
             item.subtitle = imported.root.string() + "/" + imported.executable;
         }
+        if (!state_.folder_import_message.empty()) {
+            auto& status = row("folder-game-status", RowKind::Status, state_.folder_import_message, "");
+            status.enabled = false;
+        }
         if (view_.rows.empty()) row(state_.library.query.empty() ? "library-empty" : "clear-search", RowKind::Action,
                                     state_.library.query.empty() ? "Connect Steam" : "Clear search", state_.library.query.empty() ? "connect" : "clear-search");
         // The footer shows five legends; with a search applied, Circle clears it in place of Square Favorite.
@@ -4176,7 +4180,13 @@ void Simulation::activate() {
             state_.folder_import_message = "Preparing imported game for launch…";
         }
     } else if (action_name == "folder-import-save") {
-        const std::string id = "folder-" + std::to_string(std::hash<std::string>{}(state_.folder_import_root + "|" + state_.folder_import_executable));
+        const std::string identity = state_.folder_import_root + "|" + state_.folder_import_executable;
+        std::uint64_t stable_hash = 1469598103934665603ull;
+        for (const unsigned char byte : identity) {
+            stable_hash ^= byte;
+            stable_hash *= 1099511628211ull;
+        }
+        const std::string id = "folder-" + std::to_string(stable_hash);
         const auto result = rt::ValidateFolderGame(id, trimmed(state_.folder_import_name), state_.folder_import_root,
                                                     state_.folder_import_executable, state_.folder_import_arguments);
         if (!result.ok || !result.game) state_.folder_import_message = result.message;
