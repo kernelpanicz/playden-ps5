@@ -2496,7 +2496,8 @@ void Simulation::rebuild_view() {
             auto& args = row("folder-import-arguments", RowKind::Action, "Launch arguments", "folder-import-edit-arguments");
             args.value = state_.folder_import_arguments.empty() ? "None" : state_.folder_import_arguments;
             args.subtitle = "Optional arguments passed to the executable";
-            auto& scan = row("folder-import-scan", RowKind::Action, "Scan for executables", "Find .exe files inside the folder", "folder-import-scan");
+            auto& scan = row("folder-import-scan", RowKind::Action, "Scan for executables", "folder-import-scan");
+            scan.subtitle = "Find .exe, .com, and .bat files inside the folder";
             scan.enabled = !state_.folder_import_root.empty();
             for (std::size_t i = 0; i < state_.folder_import_executables.size(); ++i) {
                 const auto& path = state_.folder_import_executables[i];
